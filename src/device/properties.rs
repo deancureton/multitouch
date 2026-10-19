@@ -46,6 +46,13 @@ impl Device {
             .then_some((width, height))
     }
 
+    /// Family IDs are shared between Touch Bars and built-in trackpads (105 is the
+    /// trackpad on e.g. MacBookPro18,x), so classify by the strip's aspect ratio.
+    pub fn is_touch_bar(&self) -> bool {
+        self.sensor_surface_dimensions()
+            .is_some_and(|(width, height)| height > 0 && width >= 4 * height)
+    }
+
     pub fn sensor_dimensions(&self) -> Option<(i32, i32)> {
         let (mut rows, mut columns) = (0, 0);
         (unsafe { MTDeviceGetSensorDimensions(self.inner.raw, &mut rows, &mut columns) } == 0)
@@ -85,23 +92,18 @@ impl Device {
     }
 
     pub fn name(&self) -> String {
+        if self.is_touch_bar() {
+            return "Touch Bar".into();
+        }
         match self.family_id() {
-            Some(98 | 99 | 100 | 101 | 102 | 103 | 104 | 108 | 109) => "MacBook Trackpad".into(),
-            Some(105) => "Touch Bar".into(),
+            Some(98..=105 | 108 | 109) => "MacBook Trackpad".into(),
             Some(112 | 113) => "Magic Mouse".into(),
             Some(128..=130) => "Magic Trackpad".into(),
             family => {
                 let id = family
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| "unknown".into());
-                if self
-                    .sensor_surface_dimensions()
-                    .is_some_and(|(w, h)| w > 1000 && h < 100)
-                {
-                    format!("Unknown Touch Bar (family ID: {id})")
-                } else {
-                    format!("Unknown Device (family ID: {id})")
-                }
+                format!("Unknown Device (family ID: {id})")
             }
         }
     }
